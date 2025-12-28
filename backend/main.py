@@ -1,13 +1,11 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import List, Optional
-
-# Saját modulok importálása
+from typing import List, Dict
 from backend.models import database, tables
 from backend.services.data_fetcher import WhoDataService
 
-# Adatbázis inicializás
+# Adatbázis inicializálás
 tables.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(title="COVID19 Dashboard API")
@@ -32,11 +30,15 @@ def get_db():
     finally:
         db.close()
 
-# --- ENDPOINT ---
+# --- ENDPOINTOK ---
 
 @app.get("/")
 def read_root():
     return {"status": "running", "docs_url": "/docs"}
+
+@app.get("/api/countries")
+def get_countries():
+    return service.get_supported_countries()
 
 @app.get("/api/dashboard/{country_code}", response_model=DashboardResponse)
 def get_dashboard(country_code: str, db: Session = Depends(get_db)):

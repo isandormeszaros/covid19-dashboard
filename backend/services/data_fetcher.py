@@ -29,10 +29,10 @@ class WhoDataService:
         life_exp_df = self.fetch_indicator("WHOSIS_000001", country_code)
         
         if life_exp_df.empty:
-            logger.warning(f"Nincs adat ehhez az országhoz: {country_code}") # Logolás print helyett
+            logger.warning(f"Nincs adat ehhez az országhoz: {country_code}") 
             return None 
 
-        #Legutolsó elérhető adatot
+        # Legutolsó elérhető adat
         last_record = life_exp_df.iloc[-1]
         life_exp_val = round(last_record["value"], 1)
 
@@ -43,7 +43,7 @@ class WhoDataService:
             val = suicide_df.iloc[-1]["value"]
             suicide_val = f"{round(val, 1)}/100K"
 
-        #WS Wikipédia munkanélkülséghez
+        # WS Wikipédia munkanélkülséghez
         country_name = self.COUNTRY_MAP.get(country_code, "Hungary")
         unemployment_data = self.scrape_wikipedia_unemployment(country_name)
         
@@ -108,7 +108,7 @@ class WhoDataService:
                         "value": float(item["value"])
                     })
             
-            #funkcionális
+            # funkcionális
             return sorted(records, key=lambda x: x["year"])
             
         except Exception as e:
@@ -131,9 +131,7 @@ class WhoDataService:
             if not data_raw: return pd.DataFrame()
             
             df = pd.DataFrame(data_raw)
-            # Csak az év és az érték oszlopokat tartjuk meg
             df = df[["TimeDim", "Value", "Dim1"]] if "Dim1" in df.columns else df[["TimeDim", "Value"]]
-            # Adattisztítás: levágjuk a felesleges karaktereket a számokról
             df["Value"] = df["Value"].apply(lambda x: self.clean_number_internal(x))
             # Nemek szerinti bontás
             if "Dim1" in df.columns:
@@ -157,7 +155,7 @@ class WhoDataService:
     def clean_number_internal(self, value):
         try:
             clean_str = str(value).split(" ")[0]
-            # számjegyek, pontok maradnak csak
+            # számjegyek, pontok
             clean_str = re.sub(r'[^\d\.]', '', clean_str)
             return float(clean_str)
         except:
@@ -168,5 +166,3 @@ class WhoDataService:
     
     def get_supported_countries(self):
         return self.COUNTRY_MAP
-    
-    

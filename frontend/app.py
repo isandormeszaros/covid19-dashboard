@@ -18,68 +18,36 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Függvény az országlista lekérésére
 @st.cache_data
 def get_countries_list():
+    if not API_URL: return {}
+    base_url = API_URL.replace('/api/dashboard', '')
     try:
-        if not API_URL: return {}
-        resp = requests.get(f"{API_URL.replace('/api/dashboard', '')}/api/countries")
+        resp = requests.get(f"{base_url}/api/countries")
         if resp.status_code == 200:
             return resp.json()
     except:
         pass
-    return {"HUN": "Hungary", "USA": "United States"} # Fallback
+    return {"HUN": "Hungary", "USA": "United States"}
 
-# Függvény a statisztika lekérésére
-def get_search_stats():
-    try:
-        if not API_URL: return []
-        resp = requests.get(f"{API_URL.replace('/api/dashboard', '')}/api/stats")
-        if resp.status_code == 200:
-            return resp.json()
-    except:
-        pass
-    return []
-
-# --- OLDALSÁV (NAVBAR) ---
+# Navbar 
 with st.sidebar:
     st.title("COVID19 Dashboard")
     
-    # 1. Országválasztó (Dropdown) az API-ból
+    # Legördülő
     countries_map = get_countries_list()
-    # A selectbox-nak egy listát adunk: "KÓD - Név" formátumban
     options = [f"{code} - {name}" for code, name in countries_map.items()]
     
     selected_option = st.selectbox("Válassz országot:", options, index=0)
-    # Kivágjuk a kódot az elejéről (pl. "HUN - Hungary" -> "HUN")
     country_input = selected_option.split(" - ")[0]
     
     st.write("---")
     st.button("Frissítés")
 
-    # 2. Statisztika (Keresési előzmények)
-    st.subheader("Népszerű keresések")
-    stats_data = get_search_stats()
-    if stats_data:
-        df_stats = pd.DataFrame(stats_data)
-        chart_stats = alt.Chart(df_stats).mark_bar().encode(
-            x=alt.X('count', title='Keresések száma'),
-            y=alt.Y('country', sort='-x', title='Ország'),
-            color=alt.value('#e9c46a')
-        )
-        st.altair_chart(chart_stats, use_container_width=True)
-    else:
-        st.info("Még nincs statisztika.")
-
-# --- FŐOLDAL ---
+# Site
 st.title(f"Dashboard - {countries_map.get(country_input, country_input)}")
 
-if not API_URL:
-    st.error("HIBA: A 'BACKEND_URL' környezeti változó nincs beállítva az .env fájlban!")
-    st.stop()
-
 try:
-    # Itt hívjuk meg a fő dashboard végpontot
     response = requests.get(f"{API_URL}/{country_input}")
     
     if response.status_code == 404:
@@ -93,7 +61,7 @@ try:
     metrics = data["metrics"]
     charts = data["charts"]
 
-    # KPI Kártyák
+    # KPI
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Ország", data["country"])
     c2.metric("Várható élettartam", f"{metrics['life_expectancy']} év")
@@ -129,7 +97,7 @@ try:
             ).interactive()
             st.altair_chart(chart_life, use_container_width=True)
         else:
-            st.info("Nincs elérhető élettartam.")
+            st.info("Nincs elérhető élettartam adat.")
 
 except Exception as e:
-    st.error(f"Nem érhető el a szerver ({e})")
+    st.error(f"Nem érhető el a Backend! ({e})")

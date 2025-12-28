@@ -9,7 +9,6 @@ class CountryStat(Base):
     country_code = Column(String, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
     
-    # Tárolt metrikák
     life_expectancy = Column(Float)
     suicide_rate = Column(String)
     unemployment = Column(String)
