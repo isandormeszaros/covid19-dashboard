@@ -1,41 +1,61 @@
-from fastapi import FastAPI
-from backend.services.data_fetcher import AthenaAPI
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from typing import List, Optional
 
-app = FastAPI(title="WHO Athena API Dashboard")
+# Saját modulok importálása
+from backend.models import database, tables
+from backend.services.data_fetcher import WhoDataService
 
-athena = AthenaAPI()
+# Adatbázis inicializás
+tables.Base.metadata.create_all(bind=database.engine)
+
+app = FastAPI(title="COVID19 Dashboard API")
+service = WhoDataService()
+
+class DashboardMetrics(BaseModel):
+    life_expectancy: float
+    unemployment: str
+    suicide_rate: str
+    gdp_trend: str
+
+class DashboardResponse(BaseModel):
+    country: str
+    metrics: DashboardMetrics
+    charts: dict
+
+# Adatbázis session kezelés
+def get_db():
+    db = database.SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# --- ENDPOINT ---
 
 @app.get("/")
-def root():
-    return {"message": "WHO Athena API is running"}
+def read_root():
+    return {"status": "running", "docs_url": "/docs"}
 
-"""Elérhető indikátorok listája"""
-@app.get("/api/indicators")
-def get_indicators():
-    data = athena.fetch_indicator_list()
-    return {"count": len(data), "indicators": data} 
+@app.get("/api/dashboard/{country_code}", response_model=DashboardResponse)
+def get_dashboard(country_code: str, db: Session = Depends(get_db)):
+    data = service.get_dashboard_data(country_code)
+    
+    if data is None:
+        raise HTTPException(status_code=404, detail=f"Nincs adat a '{country_code}' országhoz.")
+    
+    try:
+        stat = tables.CountryStat(
+            country_code=country_code,
+            life_expectancy=data["metrics"]["life_expectancy"],
+            suicide_rate=data["metrics"]["suicide_rate"],
+            unemployment=data["metrics"]["unemployment"],
+            gdp_trend=data["metrics"]["gdp_trend"]
+        )
+        db.add(stat)
+        db.commit()
+    except Exception as e:
+        print(f"DB Error: {e}") 
 
-"""Elérhető indikátorok az adott országra"""
-@app.get("/api/available/{country_code}")
-def get_available_indicators(country_code: str):
-    all_indicators = athena.fetch_indicator_list()
-    available = []
-
-    for code, name in all_indicators[:40]:
-        df = athena.fetch_country_data(code, country_code)
-        if not df.empty:
-            available.append({"code": code, "name": name, "records": len(df)})
-
-    return {
-        "country": country_code,
-        "available_indicators_count": len(available),
-        "indicators": available
-    }
-
-"""Adott ország és indikátor adatai"""
-@app.get("/api/country/{country_code}/indicator/{indicator_code}")
-def get_country_indicator(country_code: str, indicator_code: str):
-    df = athena.fetch_country_data(indicator_code, country_code)
-    if df.empty:
-        return {"error": f"Nincs adat az indikátorhoz: {indicator_code} az országra: {country_code}"}
-    return df.to_dict(orient="records")
+    return data
